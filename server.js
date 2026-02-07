@@ -179,44 +179,48 @@ app.post('/api/analyze-resume', upload.single('file'), async (req, res) => {
     console.log('Analyzing resume with Gemini...');
 
     // Get Gemini model
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
     // Call Gemini API to analyze the resume
-    const result = await model.generateContent(`You are a career counselor analyzing a resume. Please analyze the following resume and extract key information.
+    const result = await model.generateContent(`You are an expert career counselor and resume analyst. Your task is to thoroughly analyze the provided resume and extract COMPREHENSIVE information.
 
-Resume:
+RESUME TEXT:
 ${resumeText}
 
-Please provide your response in the following JSON format (return ONLY valid JSON, no markdown or extra text):
+CRITICAL INSTRUCTIONS:
+1. Extract EVERY skill mentioned in the resume - be exhaustive and include technical skills, soft skills, tools, languages, methodologies, certifications, and any other competencies mentioned
+2. Provide a DETAILED experience summary covering the full arc of their career - include progression, key achievements, and scope of responsibility
+3. Extract ALL education mentioned - degrees, certifications, relevant coursework, and continuous learning
+4. Identify their career level (entry-level, mid-level, senior, manager, executive)
+5. Generate exactly 5 SPECIFIC, CONVERSATIONAL questions designed to understand their career aspirations and match them with the RIGHT opportunities
+
+Generate questions that are:
+- Natural and conversational (like a real person talking)
+- Specific to their background and experience level
+- Designed to uncover career direction (pivot vs. continuation vs. advancement)
+- Focused on preferences, values, and constraints
+- Never generic or robotic
+
+Format response as ONLY valid JSON (no markdown, no extra text):
 {
   "analysis": {
-    "name": "Full name of the candidate (or 'Not specified' if not found)",
-    "currentRole": "Current or most recent job title",
-    "skills": ["skill1", "skill2", "skill3", ...],
-    "experience": "Brief summary of their work experience (2-3 sentences)",
-    "education": "Highest degree or most relevant education"
+    "name": "Full name (or 'Not specified')",
+    "currentRole": "Most recent job title and company",
+    "careerLevel": "entry-level|mid-level|senior|manager|executive",
+    "skills": ["skill1", "skill2", "skill3", "skill4", "skill5", ... list ALL skills comprehensively],
+    "experience": "Write 3-4 sentences providing a comprehensive overview of their entire career journey, key achievements, and progression. Include scope of work, industries, and any unique expertise.",
+    "education": "List all degrees, certifications, and relevant educational achievements. Include institution and year if available."
   },
   "questions": [
-    "Question 1 - ALWAYS about career pivot/continuation",
-    "Question 2 - contextual follow-up",
-    "Question 3 - contextual follow-up",
-    "Question 4 - contextual follow-up",
-    "Question 5 - contextual follow-up"
+    "Question 1 - About career direction/pivot (make it specific to their background)",
+    "Question 2 - About role preferences (leadership vs individual contributor, or other role-specific preference)",
+    "Question 3 - About work environment (remote, location, company size/type)",
+    "Question 4 - About industry or domain preferences",
+    "Question 5 - About values/priorities (what matters most in next role - growth, stability, mission, compensation, work-life balance, etc.)"
   ]
 }
 
-IMPORTANT: Generate exactly 5 conversational, natural questions (not robotic) to deeply understand their career goals:
-
-1. FIRST QUESTION (always use this exact question): "Are you looking to continue in your current career path, or are you interested in pivoting to a different field or role? If pivoting, what direction interests you?"
-
-2-5. FOLLOW-UP QUESTIONS (tailor these based on the resume):
-   - If the candidate appears to be senior (10+ years experience, leadership roles, or management experience): Ask about their preference for leadership roles vs individual contributor roles
-   - Ask about their location preferences (remote, hybrid, in-person, willing to relocate)
-   - Ask about company type preferences (startup, established company, enterprise, nonprofit, etc.)
-   - Ask about industry preferences or if they're open to switching industries
-   - Ask what matters most to them (career growth, job stability, company mission, work-life balance, compensation, etc.)
-
-Make questions 2-5 conversational and specific to their background. The goal is to match them with the RIGHT jobs, not just any jobs.`);
+Remember: The questions should feel natural and tailored to their specific background, not generic templates.`);
 
     // Extract the text response from Gemini
     const response = result.response;
@@ -242,6 +246,124 @@ Make questions 2-5 conversational and specific to their background. The goal is 
     console.error('Error analyzing resume:', error.message);
     res.status(500).json({
       error: 'Failed to analyze resume',
+      message: error.message
+    });
+  }
+});
+
+// ==============================================
+// ENDPOINT 3: Match Jobs Based on User Preferences
+// ==============================================
+// Takes user's answers to career questions and generates personalized job matches
+app.post('/api/match-jobs', express.json(), async (req, res) => {
+  try {
+    const { userProfile, userAnswers } = req.body;
+
+    // Validate input
+    if (!userProfile || !userAnswers) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Please provide userProfile and userAnswers'
+      });
+    }
+
+    // Check if API key is configured
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({
+        error: 'GEMINI_API_KEY not configured in .env file'
+      });
+    }
+
+    console.log('Matching jobs based on user preferences...');
+
+    // Get Gemini model
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+
+    // Call Gemini API to generate job matches
+    const result = await model.generateContent(`You are an expert career matching AI. Based on the candidate's profile and their answers about career preferences, generate personalized job recommendations.
+
+CANDIDATE PROFILE:
+${JSON.stringify(userProfile, null, 2)}
+
+CANDIDATE'S ANSWERS TO CAREER QUESTIONS:
+${userAnswers.map((answer, index) => `Q${index + 1}: ${answer}`).join('\n')}
+
+Your task:
+1. Analyze the candidate's skills, experience, and career goals based on their answers
+2. Identify their career direction (continuation, pivot, advancement)
+3. Determine their ideal role characteristics, company environment, and location preferences
+4. Generate 5-8 realistic, personalized job position recommendations with:
+   - Job title that would be a good fit
+   - Type of company/industry
+   - Key responsibilities that leverage their strengths
+   - Required vs. nice-to-have qualifications (mapped to their profile)
+   - Estimated salary range (based on their experience level)
+   - Why this role is a good fit for them based on their answers
+   - Whether this represents a continuation, pivot, or advancement
+
+Format as ONLY valid JSON (no markdown, no extra text):
+{
+  "careerAnalysis": {
+    "detectedDirection": "continuation|pivot|advancement",
+    "careerGoals": "Brief summary of what they're looking for based on answers",
+    "keyStrengths": ["strength1", "strength2", "strength3"],
+    "matchCriteria": {
+      "roleType": "description of ideal roles",
+      "industryPreferences": ["industry1", "industry2"],
+      "workEnvironment": "description of preferred work environment based on answers",
+      "locationPreferences": "description of location preferences based on answers"
+    }
+  },
+  "jobMatches": [
+    {
+      "id": 1,
+      "jobTitle": "Specific job title",
+      "company": "Company type/example",
+      "industry": "Industry",
+      "roleType": "continuation|pivot|advancement",
+      "keyResponsibilities": ["responsibility1", "responsibility2", "responsibility3"],
+      "requiredQualifications": ["qual1", "qual2"],
+      "niceToHave": ["nice1", "nice2"],
+      "salaryRange": "$XXX,000-$XXX,000",
+      "workSetup": "remote|hybrid|in-person",
+      "whyGoodFit": "Explanation of why this role matches their profile and answers",
+      "growthOpportunity": "What they could learn/achieve in this role"
+    },
+    ... (repeat for 5-8 positions)
+  ],
+  "nextSteps": [
+    "Action 1 to take next",
+    "Action 2 to prepare",
+    "Action 3 for job search"
+  ]
+}
+
+Make recommendations realistic and thoughtful - not generic. Reference specific skills and experiences from their profile.`);
+
+    // Extract the text response
+    const response = result.response;
+    const responseText = response.text();
+
+    // Parse the JSON response
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse Gemini job matching response:', responseText);
+      return res.status(500).json({
+        error: 'Failed to parse job matching response',
+        details: responseText
+      });
+    }
+
+    // Return the job matches and recommendations
+    res.json(parsedResult);
+
+  } catch (error) {
+    // Handle any errors that occur during the API call
+    console.error('Error matching jobs:', error.message);
+    res.status(500).json({
+      error: 'Failed to match jobs',
       message: error.message
     });
   }
