@@ -45,13 +45,15 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:5173',
       'https://lovable.dev',
+      'https://fb974799-ea5e-4d7f-b7d5-59fd6e909e7d.lovableproject.com',
       'https://job-matcher-backend-production-4600.up.railway.app'
     ];
     
     // Check if origin is in allowed list or is a Lovable subdomain
     const isLovableSubdomain = origin.match(/^https:\/\/[a-zA-Z0-9-]+\.lovable\.dev$/);
+    const isLovableProject = origin.match(/^https:\/\/[a-zA-Z0-9-]+\.lovableproject\.com$/);
     
-    if (allowedOrigins.includes(origin) || isLovableSubdomain) {
+    if (allowedOrigins.includes(origin) || isLovableSubdomain || isLovableProject) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -59,7 +61,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'multipart/form-data'],
   exposedHeaders: ['Content-Type']
 }));
 
