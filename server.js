@@ -44,7 +44,8 @@ app.use(cors({
     // List of allowed origins
     const allowedOrigins = [
       'http://localhost:5173',
-      'https://lovable.dev'
+      'https://lovable.dev',
+      'https://job-matcher-backend-production-4600.up.railway.app'
     ];
     
     // Check if origin is in allowed list or is a Lovable subdomain
